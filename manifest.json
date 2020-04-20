@@ -1,14 +1,20 @@
 {
-	"name": "Window Title Locker",
-	"version": "1.0",
-	"description": "Lock the title of a window to specific text",
-	"manifest_version": 2,
-	"permissions": ["storage", "tabs", "<all_urls>"],
-	"background": {
-		"scripts": ["src/background.js"],
-		"persistent": false
-	},
-	"browser_action": {
-		"default_popup": "src/popup.html"
-	}
+  "name": "Window Title Locker",
+  "version": "1.0",
+  "description": "Lock the title of a window to specific text",
+  "manifest_version": 2,
+  "permissions": ["storage", "tabs", "<all_urls>"],
+  "background": {
+    "scripts": ["src/background.js"],
+    "persistent": false
+  },
+  "browser_action": {
+    "default_popup": "src/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content.js"]
+    }
+  ]
 }

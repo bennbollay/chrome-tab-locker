@@ -1,14 +1,52 @@
 const DefaultWindowTitle = "";
 
 // Update the title of the active tab.
-function setTitle(id, title) {
+function setTitle(tabId, title) {
   chrome.tabs.executeScript(
-    id,
+    tabId,
     { code: `document.title = '${title}';` },
     _ => chrome.runtime.lastError /* "check" error */
   );
 }
 
+function updateTitle(state, windowId, tabId, next = newTitle => {}) {
+  chrome.tabs.get(tabId, tab => {
+    let windowState = state[windowId];
+    if (!windowState) {
+      // Save the current title for the new tab.
+      state[windowId] = {
+        id: tabId,
+        title: tab.title,
+        windowTitle: windowState ? windowState.windowTitle : DefaultWindowTitle
+      };
+    }
+
+    // Don't double up the prefix (easier than to deduplicate events)
+    if (tab.title.startsWith(windowState ? windowState.windowTitle : DefaultWindowTitle)) {
+      // Save the updated state and bail
+      chrome.storage.local.set(state);
+      return next(tab.title);
+    }
+
+    // Save the current title for the new tab.
+    state[windowId] = {
+      id: tabId,
+      title: tab.title,
+      windowTitle: windowState.windowTitle
+    };
+
+    // Set the new title with the leading wart
+    let wTitle = windowState.windowTitle;
+    let newTitle = (wTitle.length > 0 ? wTitle + ": " : "") + tab.title;
+    setTitle(tabId, newTitle);
+
+    // Save the updated state
+    chrome.storage.local.set(state);
+    next(newTitle);
+  });
+}
+
+// Generate initial map
 chrome.runtime.onInstalled.addListener(function () {
   chrome.windows.getAll({ populate: true }, function (windows) {
     let state = {};
@@ -31,6 +69,7 @@ chrome.runtime.onInstalled.addListener(function () {
   });
 });
 
+// Capture switching tabs
 chrome.tabs.onActivated.addListener(info => {
   chrome.storage.local.get(null, state => {
     let windowState = state[info.windowId];
@@ -39,20 +78,28 @@ chrome.tabs.onActivated.addListener(info => {
       setTitle(windowState.id, windowState.title);
     }
 
-    chrome.tabs.get(info.tabId, tab => {
-      // Save the current title for the new tab.
-      state[info.windowId] = {
-        id: info.tabId,
-        title: tab.title,
-        windowTitle: windowState ? windowState.windowTitle : DefaultWindowTitle
-      };
-
-      // Set the new title with the leading wart
-      let wTitle = state[info.windowId].windowTitle;
-      setTitle(info.tabId, (wTitle.length > 0 ? wTitle + ": " : "") + tab.title);
-
-      // Save the updated state
-      chrome.storage.local.set(state);
-    });
+    updateTitle(state, info.windowId, info.tabId);
   });
+});
+
+// Listen for messages from src/content.js indicating the title has changed.
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  chrome.storage.local.get(null, state => {
+    if (state[sender.tab.windowId].id == sender.tab.id) {
+      updateTitle(state, sender.tab.windowId, sender.tab.id, newTitle => {
+        sendResponse({ newTitle });
+      });
+    }
+  });
+});
+
+// Capture page loads or reloads
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status == "complete") {
+    chrome.storage.local.get(null, state => {
+      if (state[tab.windowId].id == tab.id) {
+        updateTitle(state, tab.windowId, tab.id);
+      }
+    });
+  }
 });
