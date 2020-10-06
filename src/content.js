@@ -9,17 +9,17 @@ observer = new window.WebKitMutationObserver(function (mutations) {
     titleChangedByMe = false;
   } else {
     mutations.forEach(() => {
-      chrome.runtime.sendMessage({ msg: "title-changed" });
+      chrome.runtime.sendMessage({ msg: 'title-changed' });
       titleChangedByMe = true;
     });
   }
 });
 
 // Register the observer
-if (document.querySelector("head > title") !== null) {
-  observer.observe(document.querySelector("head > title"), {
+if (document.querySelector('head > title') !== null) {
+  observer.observe(document.querySelector('head > title'), {
     subtree: true,
     characterresponse: true,
-    childList: true
+    childList: true,
   });
 }
